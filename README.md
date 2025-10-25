@@ -57,15 +57,17 @@ PP/
 └── README.md
 ```
 
-## 🚀 Getting Started
+## 🚀 Quick Start Guide
 
 ### Prerequisites
 
-- **Java 11+** (JDK 21 recommended)
+- **Java 17+** (JDK 17 or JDK 21 recommended)
 - **PowerShell** (Windows)
 - **Maven** (included in project as `apache-maven-3.9.5/`)
 
-### Step 1: Compile the TestLang++ Compiler
+### Complete Workflow (4 Simple Steps)
+
+#### Step 1: Compile the TestLang++ Compiler (Parser & Code Generator)
 
 Build the scanner, parser, and code generator:
 
@@ -83,9 +85,17 @@ This will:
 
 **Output:** Compiled classes in `build/` directory
 
-### Step 2: Run the Compiler on Example
+**What happens:**
 
-Compile the example `.test` file to generate JUnit tests:
+- Generates Scanner (lexer) from `scanner/lexer.flex` using JFlex
+- Generates Parser from `parser/parser.cup` using CUP
+- Compiles all AST, scanner, parser, and code generator classes
+
+---
+
+#### Step 2: Run the Parser/Compiler on Your Test File
+
+Compile your `.test` file to generate JUnit tests:
 
 ```powershell
 .\scripts\run-compiler.ps1 examples\example.test
@@ -93,34 +103,109 @@ Compile the example `.test` file to generate JUnit tests:
 
 **Output:** `output/GeneratedTests.java` (JUnit 5 test class)
 
-### Step 3: Start the Backend Server
+**What happens:**
 
-Start the Spring Boot backend (runs on port 8080):
+- Reads your `.test` file
+- Performs lexical analysis (tokenization)
+- Performs syntax analysis (parsing)
+- Builds Abstract Syntax Tree (AST)
+- Generates executable Java/JUnit code
+
+---
+
+#### Step 3: Start the Backend Server
+
+**Open a NEW terminal** and start the Spring Boot backend:
 
 ```powershell
 .\scripts\start-backend.ps1
 ```
 
-The server will start at `http://localhost:8080`  
-**Keep this terminal open** while running tests.
+**Backend URL:** `http://localhost:8080`  
+**⚠️ IMPORTANT:** Keep this terminal open while running tests!
 
-### Step 4: Compile and Run the Generated Tests
+**What happens:**
 
-Compile the generated test file:
+- Checks if backend JAR exists in `backend/target/`
+- If not found, builds it with Maven automatically
+- Starts Spring Boot REST API server on port 8080
+
+---
+
+#### Step 4: Compile and Run the Generated Tests
+
+**In another terminal**, compile and run the generated tests:
 
 ```powershell
+# Compile the generated test file
 .\scripts\compile-tests.ps1
-```
 
-Run the JUnit tests:
-
-```powershell
+# Run the JUnit tests
 .\scripts\run-tests.ps1 output\GeneratedTests.java
 ```
 
-**Expected Result:** All 5 tests pass ✅
+**Expected Result:** ✅ All 5 tests pass
 
-### Step 5: Verify Everything (Optional)
+**What happens:**
+
+- Downloads JUnit 5 if not present
+- Compiles `GeneratedTests.java` to bytecode
+- Executes tests using JUnit Platform Console
+- Shows test results with pass/fail status
+
+---
+
+### Alternative: One-Command Verification
+
+Run everything automatically:
+
+```powershell
+.\scripts\verify-all.ps1
+```
+
+This verifies:
+
+- ✅ Compiler is built
+- ✅ Example compiles successfully
+- ✅ Generated code contains proper JUnit structure
+- ✅ All language features work correctly
+
+**Note:** This does NOT start the backend or run tests against it.
+
+---
+
+## 📋 Summary of Scripts
+
+| Script                        | Purpose                                   | When to Use                           |
+| ----------------------------- | ----------------------------------------- | ------------------------------------- |
+| `.\scripts\compile.ps1`       | Build the TestLang++ compiler             | First time, or after changing grammar |
+| `.\scripts\run-compiler.ps1`  | Run parser/compiler on `.test` files      | Every time you write/edit a test file |
+| `.\scripts\start-backend.ps1` | Start the Spring Boot backend server      | Before running tests                  |
+| `.\scripts\compile-tests.ps1` | Compile generated Java test file          | After generating tests                |
+| `.\scripts\run-tests.ps1`     | Execute JUnit tests against backend       | To run your tests                     |
+| `.\scripts\verify-all.ps1`    | Verify compiler works (no backend needed) | Quick sanity check                    |
+
+---
+
+## 🎯 Typical Development Workflow
+
+```powershell
+# 1. Write or modify your .test file
+code examples\mytest.test
+
+# 2. Compile it to Java/JUnit
+.\scripts\run-compiler.ps1 examples\mytest.test output\MyTests.java
+
+# 3. Start backend (if not already running)
+.\scripts\start-backend.ps1  # In separate terminal
+
+# 4. Run the generated tests
+.\scripts\run-tests.ps1 output\MyTests.java
+```
+
+---
+
+### Quick Verification (Optional)
 
 Run the complete verification:
 
