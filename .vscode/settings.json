@@ -1,0 +1,14 @@
+{
+    "java.project.sourcePaths": [
+        "ast",
+        "codegen",
+        "compiler",
+        "parser",
+        "scanner",
+        "output"
+    ],
+    "java.project.outputPath": "build",
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar"
+    ]
+}

@@ -1,0 +1,272 @@
+package parser;
+
+import java_cup.runtime.*;
+import ast.*;
+import java.util.*;
+
+/* Custom parser code for error handling */
+parser code {:
+    // Override syntax error handler
+    public void syntax_error(Symbol currentToken) {
+        String errorMsg = "Syntax error at line " + currentToken.left + 
+                         ", column " + currentToken.right + 
+                         ", unexpected token: " + currentToken.value;
+        report_error(errorMsg, null);
+    }
+
+    // Error reporting mechanism
+    public void report_error(String msg, Object data) {
+        System.err.println(msg);
+    }
+    
+    // Fatal error handler
+    public void unrecovered_syntax_error(Symbol currentToken) {
+        String fatalMsg = "Fatal syntax error at line " + currentToken.left + 
+                         ", column " + currentToken.right;
+        System.err.println(fatalMsg);
+        System.exit(1);
+    }
+:};
+
+/* Terminal symbols (tokens from lexer) */
+terminal CONFIG, BASE_URL, HEADER, LET, TEST;
+terminal GET, POST, PUT, DELETE;
+terminal EXPECT, STATUS, BODY, CONTAINS;
+terminal EQUALS, SEMICOLON, LBRACE, RBRACE;
+terminal String IDENTIFIER, STRING;
+terminal Integer NUMBER;
+
+/* Non-terminal symbols (grammar rules) */
+non terminal ProgramNode program;
+non terminal ConfigNode config_section, config_declaration;
+non terminal List config_statements;
+non terminal List variable_declarations;
+non terminal VariableNode variable_declaration;
+non terminal Object literal_value;
+non terminal List test_suite;
+non terminal TestNode test_declaration;
+non terminal List test_body;
+non terminal Object statement;
+non terminal RequestNode http_request;
+non terminal List optional_request_block, request_statements;
+non terminal Object request_statement;
+non terminal HeaderNode header_statement;
+non terminal AssertionNode assertion_statement;
+
+/* Start symbol */
+start with program;
+
+/* Top-level program structure */
+program ::= 
+    config_section:cfg variable_declarations:vars test_suite:tests
+    {: 
+        ProgramNode node = new ProgramNode();
+        if (cfg != null) {
+            node.setConfig(cfg);
+        }
+        for (Object v : vars) {
+            node.addVariable((VariableNode) v);
+        }
+        for (Object t : tests) {
+            node.addTest((TestNode) t);
+        }
+        RESULT = node;
+    :}
+    ;
+
+/* Optional configuration section */
+config_section ::= 
+    config_declaration:cfg          {: RESULT = cfg; :}
+    | /* epsilon */                 {: RESULT = null; :}
+    ;
+
+config_declaration ::= 
+    CONFIG LBRACE config_statements:stmts RBRACE
+    {:
+        ConfigNode node = new ConfigNode();
+        for (Object stmt : stmts) {
+            if (stmt instanceof String) {
+                node.setBaseUrl((String) stmt);
+            } else if (stmt instanceof HeaderNode) {
+                node.addHeader((HeaderNode) stmt);
+            }
+        }
+        RESULT = node;
+    :}
+    ;
+
+config_statements ::=
+    config_statements:list BASE_URL EQUALS STRING:url SEMICOLON
+    {:
+        list.add(url);
+        RESULT = list;
+    :}
+    | config_statements:list header_statement:hdr
+    {:
+        list.add(hdr);
+        RESULT = list;
+    :}
+    | /* epsilon */
+    {:
+        RESULT = new ArrayList();
+    :}
+    ;
+
+header_statement ::=
+    HEADER STRING:key EQUALS STRING:value SEMICOLON
+    {:
+        RESULT = new HeaderNode(key, value);
+    :}
+    ;
+
+/* Variable declarations */
+variable_declarations ::=
+    variable_declarations:list variable_declaration:var
+    {:
+        list.add(var);
+        RESULT = list;
+    :}
+    | /* epsilon */
+    {:
+        RESULT = new ArrayList();
+    :}
+    ;
+
+variable_declaration ::=
+    LET IDENTIFIER:id EQUALS literal_value:val SEMICOLON
+    {:
+        RESULT = new VariableNode(id, val);
+    :}
+    ;
+
+literal_value ::=
+    STRING:str        {: RESULT = str; :}
+    | NUMBER:num      {: RESULT = num; :}
+    ;
+
+/* Test suite (one or more tests) */
+test_suite ::=
+    test_suite:list test_declaration:test
+    {:
+        list.add(test);
+        RESULT = list;
+    :}
+    | test_declaration:test
+    {:
+        List list = new ArrayList();
+        list.add(test);
+        RESULT = list;
+    :}
+    ;
+
+test_declaration ::=
+    TEST IDENTIFIER:id LBRACE test_body:body RBRACE
+    {:
+        TestNode node = new TestNode(id);
+        for (Object stmt : body) {
+            if (stmt instanceof RequestNode) {
+                node.addRequest((RequestNode) stmt);
+            } else if (stmt instanceof AssertionNode) {
+                node.addAssertion((AssertionNode) stmt);
+            }
+        }
+        RESULT = node;
+    :}
+    ;
+
+test_body ::=
+    test_body:list statement:stmt
+    {:
+        list.add(stmt);
+        RESULT = list;
+    :}
+    | statement:stmt
+    {:
+        List list = new ArrayList();
+        list.add(stmt);
+        RESULT = list;
+    :}
+    ;
+
+statement ::=
+    http_request:req           {: RESULT = req; :}
+    | assertion_statement:asrt {: RESULT = asrt; :}
+    ;
+
+/* HTTP request statements */
+http_request ::=
+    GET STRING:path SEMICOLON
+    {:
+        RESULT = new RequestNode(RequestNode.HttpMethod.GET, path);
+    :}
+    | DELETE STRING:path SEMICOLON
+    {:
+        RESULT = new RequestNode(RequestNode.HttpMethod.DELETE, path);
+    :}
+    | POST STRING:path optional_request_block:block SEMICOLON
+    {:
+        RequestNode node = new RequestNode(RequestNode.HttpMethod.POST, path);
+        for (Object item : block) {
+            if (item instanceof HeaderNode) {
+                node.addHeader((HeaderNode) item);
+            } else if (item instanceof String) {
+                node.setBody((String) item);
+            }
+        }
+        RESULT = node;
+    :}
+    | PUT STRING:path optional_request_block:block SEMICOLON
+    {:
+        RequestNode node = new RequestNode(RequestNode.HttpMethod.PUT, path);
+        for (Object item : block) {
+            if (item instanceof HeaderNode) {
+                node.addHeader((HeaderNode) item);
+            } else if (item instanceof String) {
+                node.setBody((String) item);
+            }
+        }
+        RESULT = node;
+    :}
+    ;
+
+optional_request_block ::=
+    LBRACE request_statements:stmts RBRACE      {: RESULT = stmts; :}
+    | /* epsilon */                             {: RESULT = new ArrayList(); :}
+    ;
+
+request_statements ::=
+    request_statements:list request_statement:stmt
+    {:
+        list.add(stmt);
+        RESULT = list;
+    :}
+    | /* epsilon */
+    {:
+        RESULT = new ArrayList();
+    :}
+    ;
+
+request_statement ::=
+    header_statement:hdr       {: RESULT = hdr; :}
+    | BODY EQUALS STRING:str SEMICOLON    {: RESULT = str; :}
+    ;
+
+/* Assertion statements */
+assertion_statement ::=
+    EXPECT STATUS EQUALS NUMBER:statusCode SEMICOLON
+    {:
+        RESULT = new AssertionNode(AssertionNode.AssertionType.STATUS, statusCode);
+    :}
+    | EXPECT HEADER STRING:key EQUALS STRING:value SEMICOLON
+    {:
+        RESULT = new AssertionNode(AssertionNode.AssertionType.HEADER_EQUALS, key, value);
+    :}
+    | EXPECT HEADER STRING:key CONTAINS STRING:value SEMICOLON
+    {:
+        RESULT = new AssertionNode(AssertionNode.AssertionType.HEADER_CONTAINS, key, value);
+    :}
+    | EXPECT BODY CONTAINS STRING:value SEMICOLON
+    {:
+        RESULT = new AssertionNode(AssertionNode.AssertionType.BODY_CONTAINS, value);
+    :}
+    ;
